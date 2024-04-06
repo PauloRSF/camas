@@ -1,0 +1,9 @@
+[package]
+name = "camas"
+version = "0.0.1"
+edition = "2021"
+
+[dependencies]
+derive_builder = "0.20.0"
+num-bigint = "0.4.4"
+termcolor = "1.4.1"
