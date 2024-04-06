@@ -18,5 +18,7 @@ pub fn main() -> Result<(), Box<dyn Error>> {
 
     println!("Value: {value}");
 
+    client.del(vec!["foo"])?;
+
     Ok(())
 }

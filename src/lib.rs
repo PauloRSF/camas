@@ -5,6 +5,7 @@ use std::{
 };
 
 use commands::{
+    del::DelArguments,
     get::GetArguments,
     set::{SetArguments, SetOptions},
     Command,
@@ -71,6 +72,12 @@ impl Client {
 
     pub fn get<K: ToString>(&mut self, key: K) -> Result<DataType, Box<dyn Error>> {
         let command = Command::Get(GetArguments::new(key));
+
+        self.execute(&command)
+    }
+
+    pub fn del<K: ToString>(&mut self, keys: Vec<K>) -> Result<DataType, Box<dyn Error>> {
+        let command = Command::Del(DelArguments::new(keys));
 
         self.execute(&command)
     }
