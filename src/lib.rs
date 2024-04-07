@@ -42,7 +42,7 @@ impl Client {
 
         self.log_send(&serialized_command)?;
 
-        self.stream.write(serialized_command.as_bytes())?;
+        self.stream.write_all(serialized_command.as_bytes())?;
 
         let mut buf = [0u8; 1024];
 

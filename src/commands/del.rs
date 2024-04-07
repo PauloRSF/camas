@@ -18,7 +18,7 @@ impl DelArguments {
             .keys
             .iter()
             .cloned()
-            .map(|item| DataType::BulkString(item));
+            .map(DataType::BulkString);
 
         arguments.extend(keys);
 
