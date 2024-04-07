@@ -1,6 +1,6 @@
 mod parsers;
 
-use std::{collections::HashMap, error::Error, fmt::Display, str::FromStr};
+use std::{error::Error, fmt::Display, str::FromStr};
 
 use num_bigint::BigInt;
 
@@ -16,7 +16,7 @@ pub enum DataType {
     SimpleError(String),
     SimpleString(String),
     Array(Vec<DataType>),
-    Map(HashMap<DataType, DataType>),
+    // Map(HashMap<DataType, DataType>),
 }
 
 impl DataType {
@@ -55,14 +55,14 @@ impl DataType {
             DataType::BigNumber(number) => {
                 format!("({}\r\n", number)
             }
-            DataType::Map(map) => {
-                let elements = map
-                    .iter()
-                    .map(|(key, value)| format!("{}{}", key.serialize(), value.serialize()))
-                    .collect::<String>();
+            // DataType::Map(map) => {
+            //     let elements = map
+            //         .iter()
+            //         .map(|(key, value)| format!("{}{}", key.serialize(), value.serialize()))
+            //         .collect::<String>();
 
-                format!("%{}\r\n{}\r\n", map.len(), elements)
-            }
+            //     format!("%{}\r\n{}\r\n", map.len(), elements)
+            // }
             DataType::BulkError(error) => {
                 format!("!{}\r\n{}\r\n", error.len(), error)
             }
@@ -90,16 +90,15 @@ impl Display for DataType {
                     .join(",");
 
                 f.write_fmt(format_args!("[{}]", items))
-            }
-            DataType::Map(map) => {
-                let elements = map
-                    .iter()
-                    .map(|(key, value)| format!("\t{}: {}", key.to_string(), value.to_string()))
-                    .collect::<Vec<String>>()
-                    .join("\n");
+            } // DataType::Map(map) => {
+              //     let elements = map
+              //         .iter()
+              //         .map(|(key, value)| format!("\t{}: {}", key.to_string(), value.to_string()))
+              //         .collect::<Vec<String>>()
+              //         .join("\n");
 
-                f.write_fmt(format_args!("{{\n{}\n}}", elements))
-            }
+              //     f.write_fmt(format_args!("{{\n{}\n}}", elements))
+              // }
         }
     }
 }
