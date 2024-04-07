@@ -16,7 +16,6 @@ pub enum DataType {
     SimpleError(String),
     SimpleString(String),
     Array(Vec<DataType>),
-    VerbatimString(String),
     Map(HashMap<DataType, DataType>),
 }
 
@@ -56,9 +55,6 @@ impl DataType {
             DataType::BigNumber(number) => {
                 format!("({}\r\n", number)
             }
-            DataType::VerbatimString(string) => {
-                format!("={}\r\n", string)
-            }
             DataType::Map(map) => {
                 let elements = map
                     .iter()
@@ -85,7 +81,6 @@ impl Display for DataType {
             DataType::Boolean(boolean) => f.write_str(boolean.to_string().as_str()),
             DataType::Double(double) => f.write_str(double.to_string().as_str()),
             DataType::BigNumber(number) => f.write_str(number.to_string().as_str()),
-            DataType::VerbatimString(string) => f.write_str(string.to_string().as_str()),
             DataType::BulkError(error) => f.write_str(error.to_string().as_str()),
             DataType::Array(array) => {
                 let items = array
