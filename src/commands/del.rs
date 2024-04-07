@@ -25,3 +25,18 @@ impl DelArguments {
         DataType::Array(arguments).serialize()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn del_arguments_serializes() {
+        let result = DelArguments::new(vec!["foo", "bar", "baz"]).serialize();
+
+        assert_eq!(
+            result,
+            "*4\r\n$3\r\nDEL\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$3\r\nbaz\r\n"
+        );
+    }
+}

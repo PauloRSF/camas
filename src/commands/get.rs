@@ -19,3 +19,15 @@ impl GetArguments {
         .serialize()
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn get_arguments_serializes() {
+        let result = GetArguments::new("foo").serialize();
+
+        assert_eq!(result, "*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n");
+    }
+}
