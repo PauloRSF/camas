@@ -11,7 +11,13 @@ fn strip_element(value: &str, type_char: char) -> &str {
 }
 
 pub fn bulk_string(value: &str) -> Result<DataType, Box<dyn Error>> {
-    let (_, text) = strip_element(value, '$').split_once("\r\n").unwrap();
+    let string = strip_element(value, '$');
+
+    if string == "-1" {
+        return Ok(DataType::Null);
+    }
+
+    let (_, text) = string.split_once("\r\n").unwrap();
 
     Ok(DataType::BulkString(text.to_string()))
 }
