@@ -1,4 +1,4 @@
-mod parsers;
+mod parser;
 
 use std::{error::Error, fmt::Display, str::FromStr};
 
@@ -50,9 +50,7 @@ impl DataType {
             DataType::SimpleError(error) => {
                 format!("-{}\r\n", error)
             }
-            DataType::Null => {
-                format!("_\r\n")
-            }
+            DataType::Null => String::from("_\r\n"),
             DataType::Boolean(boolean) => {
                 format!("#{}\r\n", if *boolean { 't' } else { 'f' })
             }
@@ -118,16 +116,12 @@ impl FromStr for DataType {
     type Err = Box<dyn Error>;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
-        match value.chars().nth(0) {
-            Some('$') => parsers::bulk_string(value),
-            Some('+') => parsers::simple_string(value),
-            Some('-') => parsers::simple_error(value),
-            Some(':') => parsers::integer(value),
-            Some('*') => parsers::array(value),
-            Some('#') => parsers::boolean(value),
-            Some(',') => parsers::double(value),
-            Some('_') => Ok(DataType::Null),
-            _ => unimplemented!(),
+        match parser::data_type(value) {
+            Ok((_, data_type)) => Ok(data_type),
+            Err(err) => {
+                eprintln!("{err}");
+                Err("Parsing error".into())
+            }
         }
     }
 }
@@ -312,52 +306,50 @@ mod parsing_tests {
     fn double_with_no_fractional_part_parses() -> Result<(), Box<dyn Error>> {
         let result: DataType = ",3\r\n".parse()?;
 
-        if let DataType::Double(number) = result {
-            assert_eq!(number, 3_f64);
-            Ok(())
-        } else {
-            Err()
+        match result {
+            DataType::Double(number) if number == 3_f64 => Ok(()),
+            _ => Err(format!("Expected \"Double(3)\", got {result}").into()),
         }
-
-        assert!(matches!(result, DataType::Double(3_f64)));
-
-        Ok(())
     }
 
     #[test]
     fn double_with_fractional_part_parses() -> Result<(), Box<dyn Error>> {
         let result: DataType = ",3.141592\r\n".parse()?;
 
-        assert!(matches!(result, DataType::Double(3.141592)));
-
-        Ok(())
+        match result {
+            DataType::Double(number) if number == 3.141592_f64 => Ok(()),
+            _ => Err(format!("Expected \"Double(3.141592)\", got {result}").into()),
+        }
     }
 
     #[test]
     fn double_with_infinity_parses() -> Result<(), Box<dyn Error>> {
         let result: DataType = ",inf\r\n".parse()?;
 
-        assert!(matches!(result, DataType::Double(f64::INFINITY)));
-
-        Ok(())
+        match result {
+            DataType::Double(number) if number.is_infinite() && number.is_sign_positive() => Ok(()),
+            _ => Err(format!("Expected \"Double(INFINITY)\", got {result}").into()),
+        }
     }
 
     #[test]
     fn double_with_negative_infinity_parses() -> Result<(), Box<dyn Error>> {
         let result: DataType = ",-inf\r\n".parse()?;
 
-        assert!(matches!(result, DataType::Double(f64::NEG_INFINITY)));
-
-        Ok(())
+        match result {
+            DataType::Double(number) if number.is_infinite() && number.is_sign_negative() => Ok(()),
+            _ => Err(format!("Expected \"Double(NEG_INFINITY)\", got {result}").into()),
+        }
     }
 
     #[test]
     fn double_with_not_a_number_parses() -> Result<(), Box<dyn Error>> {
         let result: DataType = ",nan\r\n".parse()?;
 
-        assert!(matches!(result, DataType::Double(f64::NAN)));
-
-        Ok(())
+        match result {
+            DataType::Double(number) if number.is_nan() => Ok(()),
+            _ => Err(format!("Expected \"Double(NaN)\", got {result}").into()),
+        }
     }
 
     #[test]
@@ -397,78 +389,103 @@ mod parsing_tests {
     }
 
     #[test]
-    fn positive_big_number_parses() {
-        let value = "298416298361318972639172639182763918263981267391826379128";
+    fn positive_big_number_parses() -> Result<(), Box<dyn Error>> {
+        let number_str = "298416298361318972639172639182763918263981267391826379128";
+        let value = format!("({}\r\n", number_str);
+        let result = value.parse()?;
 
-        let result = DataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
-
-        let expected = format!("({}\r\n", value);
-
-        assert_eq!(result, expected);
+        match result {
+            DataType::BigNumber(number) if number == BigInt::from_str(number_str)? => Ok(()),
+            _ => Err(format!("Expected \"BigNumber({value})\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn negative_big_number_parses() {
-        let value = "-298416298361318972639172639182763918263981267391826379128";
+    fn negative_big_number_parses() -> Result<(), Box<dyn Error>> {
+        let number_str = "-298416298361318972639172639182763918263981267391826379128";
+        let value = format!("({}\r\n", number_str);
+        let result = value.parse()?;
 
-        let result = DataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
-
-        let expected = format!("({}\r\n", value);
-
-        assert_eq!(result, expected);
+        match result {
+            DataType::BigNumber(number) if number == BigInt::from_str(number_str)? => Ok(()),
+            _ => Err(format!("Expected \"BigNumber({value})\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn bulk_error_parses() {
-        let result = DataType::BulkError("Some error".into()).serialize();
+    fn bulk_error_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "!10\r\nSome error\r\n".parse()?;
 
-        assert_eq!(result, "!10\r\nSome error\r\n");
+        match result {
+            DataType::BulkError(error) if error == "Some error" => Ok(()),
+            _ => Err(format!("Expected \"BulkError(Some error)\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn bulk_string_parses() {
-        let result = DataType::BulkString("Some string".into()).serialize();
+    fn bulk_string_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "$11\r\nSome string\r\n".parse()?;
 
-        assert_eq!(result, "$11\r\nSome string\r\n");
+        match result {
+            DataType::BulkString(string) if string == "Some string" => Ok(()),
+            _ => Err(format!("Expected \"BulkString(Some string)\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn bulk_string_with_zero_length_parses() {
-        let result = DataType::BulkString("".into()).serialize();
+    fn bulk_string_with_zero_length_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "$0\r\n".parse()?;
 
-        assert_eq!(result, "$0\r\n");
+        match result {
+            DataType::BulkString(string) if string == "" => Ok(()),
+            _ => Err(format!("Expected \"BulkString(<empty string>)\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn simple_error_parses() {
-        let result = DataType::SimpleError("ERR Some error".into()).serialize();
+    fn simple_error_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "-ERR Some error\r\n".parse()?;
 
-        assert_eq!(result, "-ERR Some error\r\n");
+        match result {
+            DataType::SimpleError(error) if error == "ERR Some error" => Ok(()),
+            _ => Err(format!("Expected \"SimpleError(ERR Some error)\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn simple_string_parses() {
-        let result = DataType::SimpleString("OK".into()).serialize();
+    fn simple_string_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "+OK\r\n".parse()?;
 
-        assert_eq!(result, "+OK\r\n");
+        match result {
+            DataType::SimpleString(string) if string == "OK" => Ok(()),
+            _ => Err(format!("Expected \"SimpleString(OK)\", got {result}").into()),
+        }
     }
 
     #[test]
-    fn array_parses() {
-        let result = DataType::Array(vec![
-            DataType::BulkString("Foo".into()),
-            DataType::Integer(42),
-            DataType::Boolean(true),
-        ])
-        .serialize();
+    fn array_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "*3\r\n$3\r\nFoo\r\n:42\r\n#t\r\n".parse()?;
 
-        assert_eq!(result, "*3\r\n$3\r\nFoo\r\n:42\r\n#t\r\n");
+        if let DataType::Array(ref array) = result {
+            if let [DataType::BulkString(string), DataType::Integer(42), DataType::Boolean(true)] =
+                &array[..]
+            {
+                if string == "Foo" {
+                    return Ok(());
+                }
+            }
+        }
+
+        Err(format!("Expected \"Array([Foo, 42, true])\", got {result}").into())
     }
 
     #[test]
-    fn array_with_no_items_parses() {
-        let result = DataType::Array(vec![]).serialize();
+    fn array_with_no_items_parses() -> Result<(), Box<dyn Error>> {
+        let result: DataType = "*0\r\n".parse()?;
 
-        assert_eq!(result, "*0\r\n");
+        match result {
+            DataType::Array(array) if array.is_empty() => Ok(()),
+            _ => Err(format!("Expected \"Array([])\", got {result}").into()),
+        }
     }
 }
