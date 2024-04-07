@@ -23,7 +23,7 @@ pub enum SetMode {
 pub struct SetOptions {
     pub expiration_time: Option<ExpirationTime>,
     pub set_mode: Option<SetMode>,
-    pub get_previous_value: Option<bool>,
+    pub get_previous_value: bool,
 }
 
 #[derive(Clone)]
@@ -64,7 +64,7 @@ impl SetArguments {
             }
         }
 
-        if let Some(true) = &self.options.get_previous_value {
+        if self.options.get_previous_value {
             arguments.push(DataType::BulkString(String::from("GET")));
         }
 
@@ -105,13 +105,27 @@ pub enum SetResponse {
 
 impl SetResponse {
     pub fn parse(arguments: &SetArguments, response: &DataType) -> Self {
-        match response {
-            DataType::SimpleString(string) if string == "OK" => SetResponse::Ok,
-            DataType::Null => match arguments.options.get_previous_value {
-                Some(true) => SetResponse::PreviousValue(None),
-                _ => SetResponse::Aborted,
-            },
-            value => SetResponse::PreviousValue(Some(value.clone())),
+        if arguments.options.get_previous_value {
+            return match response {
+                DataType::Null => SetResponse::PreviousValue(None),
+                value => SetResponse::PreviousValue(Some(value.clone())),
+            };
         }
+
+        if arguments.options.set_mode.is_some() {
+            if let DataType::Null = response {
+                return SetResponse::Aborted;
+            }
+        }
+
+        if let DataType::SimpleString(string) = response {
+            if string == "OK" {
+                return SetResponse::Ok;
+            }
+        }
+
+        unreachable!("Redis should never return something different here")
+    }
+}
     }
 }
