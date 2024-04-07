@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 
 #[derive(Clone, Debug)]
 pub enum DataType {
-    Null(),
+    Null,
     Double(f64),
     Boolean(bool),
     Integer(i64),
@@ -44,7 +44,7 @@ impl DataType {
             DataType::SimpleError(error) => {
                 format!("-{}\r\n", error)
             }
-            DataType::Null() => {
+            DataType::Null => {
                 format!("_\r\n")
             }
             DataType::Boolean(boolean) => {
@@ -77,7 +77,7 @@ impl DataType {
 impl Display for DataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataType::Null() => f.write_str("null"),
+            DataType::Null => f.write_str("null"),
             DataType::BulkString(string) => f.write_fmt(format_args!("\"{}\"", string)),
             DataType::Integer(integer) => f.write_str(integer.to_string().as_str()),
             DataType::SimpleString(string) => f.write_str(string.to_string().as_str()),
@@ -121,7 +121,7 @@ impl FromStr for DataType {
             Some('*') => parsers::array(value),
             Some('#') => parsers::boolean(value),
             Some(',') => parsers::double(value),
-            Some('_') => Ok(DataType::Null()),
+            Some('_') => Ok(DataType::Null),
             _ => unimplemented!(),
         }
     }
