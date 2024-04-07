@@ -4,10 +4,10 @@ use crate::data_type::DataType;
 
 #[derive(Clone, Copy)]
 pub enum ExpirationTime {
-    Seconds(u32),
-    Milliseconds(u32),
-    TimestampSeconds(u32),
-    TimestampMilliseconds(u32),
+    Seconds(u64),
+    Milliseconds(u64),
+    TimestampSeconds(u64),
+    TimestampMilliseconds(u64),
     KeepTTL,
 }
 
@@ -17,7 +17,7 @@ pub enum SetMode {
     SetIfNotExists,
 }
 
-#[derive(Default, Builder)]
+#[derive(Default, Builder, Clone, Copy)]
 #[builder(setter(strip_option))]
 #[builder(default)]
 pub struct SetOptions {
@@ -26,6 +26,7 @@ pub struct SetOptions {
     pub get_previous_value: Option<bool>,
 }
 
+#[derive(Clone)]
 pub struct SetArguments {
     key: String,
     value: String,
@@ -92,5 +93,25 @@ impl SetArguments {
         }
 
         DataType::Array(arguments).serialize()
+    }
+}
+
+#[derive(Debug)]
+pub enum SetResponse {
+    Ok,
+    Aborted,
+    PreviousValue(Option<DataType>),
+}
+
+impl SetResponse {
+    pub fn parse(arguments: &SetArguments, response: &DataType) -> Self {
+        match response {
+            DataType::SimpleString(string) if string == "OK" => SetResponse::Ok,
+            DataType::Null => match arguments.options.get_previous_value {
+                Some(true) => SetResponse::PreviousValue(None),
+                _ => SetResponse::Aborted,
+            },
+            value => SetResponse::PreviousValue(Some(value.clone())),
+        }
     }
 }

@@ -7,7 +7,7 @@ use std::{
 use commands::{
     del::DelArguments,
     get::GetArguments,
-    set::{SetArguments, SetOptions},
+    set::{SetArguments, SetOptions, SetResponse},
     Command,
 };
 use data_type::DataType;
@@ -60,14 +60,17 @@ impl Client {
         key: K,
         value: V,
         options: SetOptions,
-    ) -> Result<DataType, Box<dyn Error>>
+    ) -> Result<SetResponse, Box<dyn Error>>
     where
         K: ToString,
         V: ToString,
     {
-        let command = Command::Set(SetArguments::new(key, value, options));
+        let arguments = SetArguments::new(key, value, options);
+        let command = Command::Set(arguments.clone());
 
-        self.execute(&command)
+        let response = self.execute(&command)?;
+
+        Ok(SetResponse::parse(&arguments, &response))
     }
 
     pub fn get<K: ToString>(&mut self, key: K) -> Result<DataType, Box<dyn Error>> {
@@ -76,9 +79,14 @@ impl Client {
         self.execute(&command)
     }
 
-    pub fn del<K: ToString>(&mut self, keys: Vec<K>) -> Result<DataType, Box<dyn Error>> {
+    pub fn del<K: ToString>(&mut self, keys: Vec<K>) -> Result<u32, Box<dyn Error>> {
         let command = Command::Del(DelArguments::new(keys));
 
-        self.execute(&command)
+        let response = self.execute(&command)?;
+
+        match response {
+            DataType::Integer(deleted_key_count) => Ok(deleted_key_count as u32),
+            _ => Err("sei la".into()),
+        }
     }
 }
