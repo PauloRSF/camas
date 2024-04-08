@@ -181,77 +181,77 @@ mod serialization_tests {
     use super::*;
 
     #[test]
-    fn null_serializes() {
+    fn serializes_null() {
         let result = DataType::Null.serialize();
 
         assert_eq!(result, "_\r\n");
     }
 
     #[test]
-    fn double_with_no_fractional_part_serializes() {
+    fn serializes_double_with_no_fractional_part() {
         let result = DataType::Double(3_f64).serialize();
 
         assert_eq!(result, ",3\r\n");
     }
 
     #[test]
-    fn double_with_fractional_part_serializes() {
+    fn serializes_double_with_fractional_part() {
         let result = DataType::Double(3.141592).serialize();
 
         assert_eq!(result, ",3.141592\r\n");
     }
 
     #[test]
-    fn double_with_infinity_serializes() {
+    fn serializes_double_with_infinity() {
         let result = DataType::Double(f64::INFINITY).serialize();
 
         assert_eq!(result, ",inf\r\n");
     }
 
     #[test]
-    fn double_with_negative_infinity_serializes() {
+    fn serializes_double_with_negative_infinity() {
         let result = DataType::Double(f64::NEG_INFINITY).serialize();
 
         assert_eq!(result, ",-inf\r\n");
     }
 
     #[test]
-    fn double_with_not_a_number_serializes() {
+    fn serializes_double_with_not_a_number() {
         let result = DataType::Double(f64::NAN).serialize();
 
         assert_eq!(result, ",nan\r\n");
     }
 
     #[test]
-    fn boolean_true_serializes() {
+    fn serializes_boolean_true() {
         let result = DataType::Boolean(true).serialize();
 
         assert_eq!(result, "#t\r\n");
     }
 
     #[test]
-    fn boolean_false_serializes() {
+    fn serializes_boolean_false() {
         let result = DataType::Boolean(false).serialize();
 
         assert_eq!(result, "#f\r\n");
     }
 
     #[test]
-    fn positive_integer_serializes() {
+    fn serializes_positive_integer() {
         let result = DataType::Integer(42).serialize();
 
         assert_eq!(result, ":42\r\n");
     }
 
     #[test]
-    fn negative_integer_serializes() {
+    fn serializes_negative_integer() {
         let result = DataType::Integer(-42).serialize();
 
         assert_eq!(result, ":-42\r\n");
     }
 
     #[test]
-    fn positive_big_number_serializes() {
+    fn serializes_positive_big_number() {
         let value = "298416298361318972639172639182763918263981267391826379128";
 
         let result = DataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
@@ -262,7 +262,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn negative_big_number_serializes() {
+    fn serializes_negative_big_number() {
         let value = "-298416298361318972639172639182763918263981267391826379128";
 
         let result = DataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
@@ -273,42 +273,42 @@ mod serialization_tests {
     }
 
     #[test]
-    fn bulk_error_serializes() {
+    fn serializes_bulk_error() {
         let result = DataType::BulkError("Some error".into()).serialize();
 
         assert_eq!(result, "!10\r\nSome error\r\n");
     }
 
     #[test]
-    fn bulk_string_serializes() {
+    fn serializes_bulk_string() {
         let result = DataType::BulkString("Some string".into()).serialize();
 
         assert_eq!(result, "$11\r\nSome string\r\n");
     }
 
     #[test]
-    fn bulk_string_with_zero_length_serializes() {
+    fn serializes_bulk_string_with_zero_length() {
         let result = DataType::BulkString("".into()).serialize();
 
         assert_eq!(result, "$0\r\n");
     }
 
     #[test]
-    fn simple_error_serializes() {
+    fn serializes_simple_error() {
         let result = DataType::SimpleError("ERR Some error".into()).serialize();
 
         assert_eq!(result, "-ERR Some error\r\n");
     }
 
     #[test]
-    fn simple_string_serializes() {
+    fn serializes_simple_string() {
         let result = DataType::SimpleString("OK".into()).serialize();
 
         assert_eq!(result, "+OK\r\n");
     }
 
     #[test]
-    fn array_serializes() {
+    fn serializes_array() {
         let result = DataType::Array(vec![
             DataType::BulkString("Foo".into()),
             DataType::Integer(42),
@@ -320,7 +320,7 @@ mod serialization_tests {
     }
 
     #[test]
-    fn array_with_no_items_serializes() {
+    fn serializes_array_with_no_items() {
         let result = DataType::Array(vec![]).serialize();
 
         assert_eq!(result, "*0\r\n");
@@ -332,7 +332,7 @@ mod parsing_tests {
     use super::*;
 
     #[test]
-    fn null_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_null() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Null;
 
         let result: DataType = "_\r\n".parse()?;
@@ -343,7 +343,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn double_with_no_fractional_part_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_unsigned_double_with_no_fractional_part() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Double(3.0);
 
         let result: DataType = ",3\r\n".parse()?;
@@ -354,7 +354,29 @@ mod parsing_tests {
     }
 
     #[test]
-    fn double_with_fractional_part_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_positive_double_with_no_fractional_part() -> Result<(), Box<dyn Error>> {
+        let expected = DataType::Double(3.0);
+
+        let result: DataType = ",+3\r\n".parse()?;
+
+        assert_eq!(expected, result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_negative_double_with_no_fractional_part() -> Result<(), Box<dyn Error>> {
+        let expected = DataType::Double(3.0);
+
+        let result: DataType = ",-3\r\n".parse()?;
+
+        assert_eq!(expected, result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_unsigned_double_with_fractional_part() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Double(3.141592);
 
         let result: DataType = ",3.141592\r\n".parse()?;
@@ -365,7 +387,29 @@ mod parsing_tests {
     }
 
     #[test]
-    fn double_with_infinity_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_positive_double_with_fractional_part() -> Result<(), Box<dyn Error>> {
+        let expected = DataType::Double(3.141592);
+
+        let result: DataType = ",+3.141592\r\n".parse()?;
+
+        assert_eq!(expected, result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_negative_double_with_fractional_part() -> Result<(), Box<dyn Error>> {
+        let expected = DataType::Double(3.141592);
+
+        let result: DataType = ",-3.141592\r\n".parse()?;
+
+        assert_eq!(expected, result);
+
+        Ok(())
+    }
+
+    #[test]
+    fn parses_double_with_infinity() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Double(f64::INFINITY);
 
         let result: DataType = ",inf\r\n".parse()?;
@@ -376,7 +420,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn double_with_negative_infinity_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_double_with_negative_infinity() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Double(f64::NEG_INFINITY);
 
         let result: DataType = ",-inf\r\n".parse()?;
@@ -387,7 +431,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn double_with_not_a_number_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_double_with_not_a_number() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Double(f64::NAN);
 
         let result: DataType = ",nan\r\n".parse()?;
@@ -398,7 +442,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn boolean_true_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_boolean_true() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Boolean(true);
 
         let result: DataType = "#t\r\n".parse()?;
@@ -409,7 +453,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn boolean_false_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_boolean_false() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Boolean(false);
 
         let result: DataType = "#f\r\n".parse()?;
@@ -420,7 +464,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn unsigned_integer_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_unsigned_integer() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Integer(42);
 
         let result: DataType = ":42\r\n".parse()?;
@@ -431,7 +475,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn positive_integer_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_positive_integer() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Integer(42);
 
         let result: DataType = ":+42\r\n".parse()?;
@@ -442,7 +486,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn negative_integer_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_negative_integer() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Integer(-42);
 
         let result: DataType = ":-42\r\n".parse()?;
@@ -453,7 +497,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn positive_big_number_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_positive_big_number() -> Result<(), Box<dyn Error>> {
         let number_str = "298416298361318972639172639182763918263981267391826379128";
 
         let expected = DataType::BigNumber(BigInt::from_str(number_str)?);
@@ -466,7 +510,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn negative_big_number_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_negative_big_number() -> Result<(), Box<dyn Error>> {
         let number_str = "-298416298361318972639172639182763918263981267391826379128";
 
         let expected = DataType::BigNumber(BigInt::from_str(number_str)?);
@@ -479,7 +523,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn bulk_error_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_bulk_error() -> Result<(), Box<dyn Error>> {
         let expected = DataType::BulkError(String::from("Some error"));
 
         let result: DataType = "!10\r\nSome error\r\n".parse()?;
@@ -490,7 +534,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn bulk_string_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_bulk_string() -> Result<(), Box<dyn Error>> {
         let expected = DataType::BulkString(String::from("Some string"));
 
         let result: DataType = "$11\r\nSome string\r\n".parse()?;
@@ -501,7 +545,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn bulk_string_with_zero_length_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_bulk_string_with_zero_length() -> Result<(), Box<dyn Error>> {
         let expected = DataType::BulkString(String::new());
 
         let result: DataType = "$0\r\n".parse()?;
@@ -512,7 +556,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn simple_error_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_simple_error() -> Result<(), Box<dyn Error>> {
         let expected = DataType::SimpleError(String::from("ERR Some error"));
 
         let result: DataType = "-ERR Some error\r\n".parse()?;
@@ -523,7 +567,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn simple_string_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_simple_string() -> Result<(), Box<dyn Error>> {
         let expected = DataType::SimpleString(String::from("OK"));
 
         let result: DataType = "+OK\r\n".parse()?;
@@ -534,7 +578,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn array_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_array() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Array(vec![
             DataType::BulkString(String::from("Foo")),
             DataType::Integer(42),
@@ -549,7 +593,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn array_with_no_items_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_array_with_no_items() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Array(Vec::new());
 
         let result: DataType = "*0\r\n".parse()?;
@@ -560,7 +604,7 @@ mod parsing_tests {
     }
 
     #[test]
-    fn nested_array_parses() -> Result<(), Box<dyn Error>> {
+    fn parses_nested_array() -> Result<(), Box<dyn Error>> {
         let expected = DataType::Array(vec![
             DataType::Array(vec![
                 DataType::Integer(1),
