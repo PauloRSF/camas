@@ -9,7 +9,7 @@ use nom::{
     },
     combinator::map,
     error::VerboseError,
-    multi::many1,
+    multi::many_m_n,
     sequence::{delimited, preceded, tuple},
     IResult,
 };
@@ -67,9 +67,14 @@ fn array_empty(input: &str) -> IResult<&str, DataType, VerboseError<&str>> {
 }
 
 fn array_with_elements(input: &str) -> IResult<&str, DataType, VerboseError<&str>> {
-    let (rest, _) = delimited(char('*'), take_while(|a: char| is_digit(a as u8)), crlf)(input)?;
+    let (rest, count) = map(
+        delimited(char('*'), take_while(|a: char| is_digit(a as u8)), crlf),
+        |value| usize::from_str(value).unwrap(),
+    )(input)?;
 
-    map(many1(data_type), |elements| DataType::Array(elements))(rest)
+    map(many_m_n(count, count, data_type), |elements| {
+        DataType::Array(elements)
+    })(rest)
 }
 
 fn array(input: &str) -> IResult<&str, DataType, VerboseError<&str>> {

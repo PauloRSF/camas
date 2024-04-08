@@ -558,4 +558,26 @@ mod parsing_tests {
 
         Ok(())
     }
+
+    #[test]
+    fn nested_array_parses() -> Result<(), Box<dyn Error>> {
+        let expected = DataType::Array(vec![
+            DataType::Array(vec![
+                DataType::Integer(1),
+                DataType::Integer(2),
+                DataType::Integer(3),
+            ]),
+            DataType::Array(vec![
+                DataType::SimpleString(String::from("Hello")),
+                DataType::SimpleError(String::from("World")),
+            ]),
+        ]);
+
+        let result: DataType =
+            "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Hello\r\n-World\r\n".parse()?;
+
+        assert_eq!(expected, result);
+
+        Ok(())
+    }
 }
