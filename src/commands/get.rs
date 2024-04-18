@@ -1,6 +1,8 @@
-use crate::data_type::DataType;
+use crate::protocol::ProtocolDataType;
 
-pub struct GetArguments {
+use super::{CommandArguments, ProtocolCommandArguments};
+
+pub(crate) struct GetArguments {
     key: String,
 }
 
@@ -10,24 +12,22 @@ impl GetArguments {
             key: key.to_string(),
         }
     }
+}
 
-    pub fn serialize(&self) -> String {
-        DataType::Array(vec![
-            DataType::BulkString(String::from("GET")),
-            DataType::BulkString(self.key.clone()),
-        ])
-        .serialize()
+impl CommandArguments for GetArguments {
+    fn to_protocol_arguments(&self) -> ProtocolCommandArguments {
+        vec![ProtocolDataType::BulkString(self.key.clone())]
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod protocol_arguments {
     use super::*;
 
     #[test]
-    fn get_arguments_serializes() {
-        let result = GetArguments::new("foo").serialize();
+    fn builds_correctly() {
+        let result = GetArguments::new("foo").to_protocol_arguments();
 
-        assert_eq!(result, "*2\r\n$3\r\nGET\r\n$3\r\nfoo\r\n");
+        assert_eq!(result, vec![ProtocolDataType::BulkString("foo".into()),]);
     }
 }

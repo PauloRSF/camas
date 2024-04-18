@@ -1,6 +1,8 @@
-use crate::data_type::DataType;
+use crate::protocol::ProtocolDataType;
 
-pub struct DelArguments {
+use super::{CommandArguments, ProtocolCommandArguments};
+
+pub(crate) struct DelArguments {
     keys: Vec<String>,
 }
 
@@ -10,33 +12,33 @@ impl DelArguments {
             keys: keys.iter().map(|item| item.to_string()).collect(),
         }
     }
+}
 
-    pub fn serialize(&self) -> String {
-        let mut arguments = vec![DataType::BulkString(String::from("DEL"))];
-
-        let keys = self
-            .keys
+impl CommandArguments for DelArguments {
+    fn to_protocol_arguments(&self) -> ProtocolCommandArguments {
+        self.keys
             .iter()
             .cloned()
-            .map(DataType::BulkString);
-
-        arguments.extend(keys);
-
-        DataType::Array(arguments).serialize()
+            .map(ProtocolDataType::BulkString)
+            .collect()
     }
 }
 
 #[cfg(test)]
-mod tests {
+mod protocol_arguments {
     use super::*;
 
     #[test]
-    fn del_arguments_serializes() {
-        let result = DelArguments::new(vec!["foo", "bar", "baz"]).serialize();
+    fn builds_correctly() {
+        let result = DelArguments::new(vec!["foo", "bar", "baz"]).to_protocol_arguments();
 
         assert_eq!(
             result,
-            "*4\r\n$3\r\nDEL\r\n$3\r\nfoo\r\n$3\r\nbar\r\n$3\r\nbaz\r\n"
+            vec![
+                ProtocolDataType::BulkString("foo".into()),
+                ProtocolDataType::BulkString("bar".into()),
+                ProtocolDataType::BulkString("baz".into())
+            ]
         );
     }
 }

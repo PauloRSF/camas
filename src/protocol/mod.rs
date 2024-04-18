@@ -1,11 +1,12 @@
-mod parser;
-
 use std::{cmp::Ordering, error::Error, fmt::Display, str::FromStr};
 
 use num_bigint::BigInt;
 
+mod parser;
+
+/// A Redis data type
 #[derive(Clone, Debug)]
-pub enum DataType {
+pub enum ProtocolDataType {
     Null,
     Double(f64),
     Boolean(bool),
@@ -15,15 +16,15 @@ pub enum DataType {
     BulkString(String),
     SimpleError(String),
     SimpleString(String),
-    Array(Vec<DataType>),
-    // Map(HashMap<DataType, DataType>),
+    Array(Vec<ProtocolDataType>),
+    // Map(HashMap<ProtocolDataType, ProtocolDataType>),
 }
 
-impl PartialEq for DataType {
+impl PartialEq for ProtocolDataType {
     fn eq(&self, other: &Self) -> bool {
         match (self, other) {
-            (DataType::Null, DataType::Null) => true,
-            (DataType::Double(lhs), DataType::Double(rhs)) => {
+            (ProtocolDataType::Null, ProtocolDataType::Null) => true,
+            (ProtocolDataType::Double(lhs), ProtocolDataType::Double(rhs)) => {
                 if lhs.is_nan() == rhs.is_nan() {
                     return true;
                 }
@@ -32,35 +33,25 @@ impl PartialEq for DataType {
                     .map(|ord| ord == Ordering::Equal)
                     .unwrap_or(false)
             }
-            (DataType::Boolean(lhs), DataType::Boolean(rhs)) => lhs == rhs,
-            (DataType::Integer(lhs), DataType::Integer(rhs)) => lhs == rhs,
-            (DataType::BigNumber(lhs), DataType::BigNumber(rhs)) => lhs == rhs,
-            (DataType::BulkError(lhs), DataType::BulkError(rhs)) => lhs == rhs,
-            (DataType::BulkString(lhs), DataType::BulkString(rhs)) => lhs == rhs,
-            (DataType::SimpleError(lhs), DataType::SimpleError(rhs)) => lhs == rhs,
-            (DataType::SimpleString(lhs), DataType::SimpleString(rhs)) => lhs == rhs,
-            (DataType::Array(lhs), DataType::Array(rhs)) => {
-                if lhs.len() != rhs.len() {
-                    return false;
-                }
-
-                for i in 0..lhs.len() {
-                    if lhs[i] != rhs[i] {
-                        return false;
-                    }
-                }
-
-                true
+            (ProtocolDataType::Boolean(lhs), ProtocolDataType::Boolean(rhs)) => lhs == rhs,
+            (ProtocolDataType::Integer(lhs), ProtocolDataType::Integer(rhs)) => lhs == rhs,
+            (ProtocolDataType::BigNumber(lhs), ProtocolDataType::BigNumber(rhs)) => lhs == rhs,
+            (ProtocolDataType::BulkError(lhs), ProtocolDataType::BulkError(rhs)) => lhs == rhs,
+            (ProtocolDataType::BulkString(lhs), ProtocolDataType::BulkString(rhs)) => lhs == rhs,
+            (ProtocolDataType::SimpleError(lhs), ProtocolDataType::SimpleError(rhs)) => lhs == rhs,
+            (ProtocolDataType::SimpleString(lhs), ProtocolDataType::SimpleString(rhs)) => {
+                lhs == rhs
             }
+            (ProtocolDataType::Array(lhs), ProtocolDataType::Array(rhs)) => lhs.eq(rhs),
             _ => false,
         }
     }
 }
 
-impl DataType {
-    pub fn serialize(&self) -> String {
+impl ProtocolDataType {
+    pub(crate) fn serialize(&self) -> String {
         match self {
-            DataType::Array(array) => {
+            ProtocolDataType::Array(array) => {
                 if array.is_empty() {
                     return String::from("*0\r\n");
                 }
@@ -72,37 +63,37 @@ impl DataType {
 
                 format!("*{}\r\n{}", array.len(), elements)
             }
-            DataType::BulkString(string) => {
+            ProtocolDataType::BulkString(string) => {
                 if string.is_empty() {
                     return String::from("$0\r\n");
                 }
 
                 format!("${}\r\n{}\r\n", string.len(), string)
             }
-            DataType::Integer(integer) => {
+            ProtocolDataType::Integer(integer) => {
                 format!(":{}\r\n", integer)
             }
-            DataType::SimpleString(string) => {
+            ProtocolDataType::SimpleString(string) => {
                 format!("+{}\r\n", string)
             }
-            DataType::SimpleError(error) => {
+            ProtocolDataType::SimpleError(error) => {
                 format!("-{}\r\n", error)
             }
-            DataType::Null => String::from("_\r\n"),
-            DataType::Boolean(boolean) => {
+            ProtocolDataType::Null => String::from("_\r\n"),
+            ProtocolDataType::Boolean(boolean) => {
                 format!("#{}\r\n", if *boolean { 't' } else { 'f' })
             }
-            DataType::Double(double) => {
+            ProtocolDataType::Double(double) => {
                 if double.is_nan() {
                     return String::from(",nan\r\n");
                 }
 
                 format!(",{}\r\n", double)
             }
-            DataType::BigNumber(number) => {
+            ProtocolDataType::BigNumber(number) => {
                 format!("({}\r\n", number)
             }
-            // DataType::Map(map) => {
+            // ProtocolDataType::Map(map) => {
             //     let elements = map
             //         .iter()
             //         .map(|(key, value)| format!("{}{}", key.serialize(), value.serialize()))
@@ -110,26 +101,26 @@ impl DataType {
 
             //     format!("%{}\r\n{}\r\n", map.len(), elements)
             // }
-            DataType::BulkError(error) => {
+            ProtocolDataType::BulkError(error) => {
                 format!("!{}\r\n{}\r\n", error.len(), error)
             }
         }
     }
 }
 
-impl Display for DataType {
+impl Display for ProtocolDataType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            DataType::Null => f.write_str("null"),
-            DataType::BulkString(string) => f.write_fmt(format_args!("\"{}\"", string)),
-            DataType::Integer(integer) => f.write_str(integer.to_string().as_str()),
-            DataType::SimpleString(string) => f.write_str(string.to_string().as_str()),
-            DataType::SimpleError(error) => f.write_str(error.to_string().as_str()),
-            DataType::Boolean(boolean) => f.write_str(boolean.to_string().as_str()),
-            DataType::Double(double) => f.write_str(double.to_string().as_str()),
-            DataType::BigNumber(number) => f.write_str(number.to_string().as_str()),
-            DataType::BulkError(error) => f.write_str(error.to_string().as_str()),
-            DataType::Array(array) => {
+            ProtocolDataType::Null => f.write_str("null"),
+            ProtocolDataType::BulkString(string) => f.write_fmt(format_args!("\"{}\"", string)),
+            ProtocolDataType::Integer(integer) => f.write_str(integer.to_string().as_str()),
+            ProtocolDataType::SimpleString(string) => f.write_str(string.to_string().as_str()),
+            ProtocolDataType::SimpleError(error) => f.write_str(error.to_string().as_str()),
+            ProtocolDataType::Boolean(boolean) => f.write_str(boolean.to_string().as_str()),
+            ProtocolDataType::Double(double) => f.write_str(double.to_string().as_str()),
+            ProtocolDataType::BigNumber(number) => f.write_str(number.to_string().as_str()),
+            ProtocolDataType::BulkError(error) => f.write_str(error.to_string().as_str()),
+            ProtocolDataType::Array(array) => {
                 let items = array
                     .iter()
                     .map(|item| item.to_string())
@@ -137,7 +128,7 @@ impl Display for DataType {
                     .join(",");
 
                 f.write_fmt(format_args!("[{}]", items))
-            } // DataType::Map(map) => {
+            } // ProtocolDataType::Map(map) => {
               //     let elements = map
               //         .iter()
               //         .map(|(key, value)| format!("\t{}: {}", key.to_string(), value.to_string()))
@@ -150,7 +141,7 @@ impl Display for DataType {
     }
 }
 
-impl FromStr for DataType {
+impl FromStr for ProtocolDataType {
     type Err = Box<dyn Error>;
 
     fn from_str(value: &str) -> Result<Self, Self::Err> {
@@ -164,88 +155,88 @@ impl FromStr for DataType {
     }
 }
 
-impl From<&str> for DataType {
+impl From<&str> for ProtocolDataType {
     fn from(value: &str) -> Self {
-        DataType::BulkString(value.to_string())
+        ProtocolDataType::BulkString(value.to_string())
     }
 }
 
-impl From<i64> for DataType {
+impl From<i64> for ProtocolDataType {
     fn from(value: i64) -> Self {
-        DataType::Integer(value)
+        ProtocolDataType::Integer(value)
     }
 }
 
 #[cfg(test)]
-mod serialization_tests {
+mod serialization {
     use super::*;
 
     #[test]
     fn serializes_null() {
-        let result = DataType::Null.serialize();
+        let result = ProtocolDataType::Null.serialize();
 
         assert_eq!(result, "_\r\n");
     }
 
     #[test]
     fn serializes_double_with_no_fractional_part() {
-        let result = DataType::Double(3_f64).serialize();
+        let result = ProtocolDataType::Double(3_f64).serialize();
 
         assert_eq!(result, ",3\r\n");
     }
 
     #[test]
     fn serializes_double_with_fractional_part() {
-        let result = DataType::Double(3.141592).serialize();
+        let result = ProtocolDataType::Double(3.141592).serialize();
 
         assert_eq!(result, ",3.141592\r\n");
     }
 
     #[test]
     fn serializes_double_with_infinity() {
-        let result = DataType::Double(f64::INFINITY).serialize();
+        let result = ProtocolDataType::Double(f64::INFINITY).serialize();
 
         assert_eq!(result, ",inf\r\n");
     }
 
     #[test]
     fn serializes_double_with_negative_infinity() {
-        let result = DataType::Double(f64::NEG_INFINITY).serialize();
+        let result = ProtocolDataType::Double(f64::NEG_INFINITY).serialize();
 
         assert_eq!(result, ",-inf\r\n");
     }
 
     #[test]
     fn serializes_double_with_not_a_number() {
-        let result = DataType::Double(f64::NAN).serialize();
+        let result = ProtocolDataType::Double(f64::NAN).serialize();
 
         assert_eq!(result, ",nan\r\n");
     }
 
     #[test]
     fn serializes_boolean_true() {
-        let result = DataType::Boolean(true).serialize();
+        let result = ProtocolDataType::Boolean(true).serialize();
 
         assert_eq!(result, "#t\r\n");
     }
 
     #[test]
     fn serializes_boolean_false() {
-        let result = DataType::Boolean(false).serialize();
+        let result = ProtocolDataType::Boolean(false).serialize();
 
         assert_eq!(result, "#f\r\n");
     }
 
     #[test]
     fn serializes_positive_integer() {
-        let result = DataType::Integer(42).serialize();
+        let result = ProtocolDataType::Integer(42).serialize();
 
         assert_eq!(result, ":42\r\n");
     }
 
     #[test]
     fn serializes_negative_integer() {
-        let result = DataType::Integer(-42).serialize();
+        let result = ProtocolDataType::Integer(-42).serialize();
 
         assert_eq!(result, ":-42\r\n");
     }
@@ -254,7 +245,7 @@ mod serialization_tests {
     fn serializes_positive_big_number() {
         let value = "298416298361318972639172639182763918263981267391826379128";
 
-        let result = DataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
+        let result = ProtocolDataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
 
         let expected = format!("({}\r\n", value);
 
@@ -265,7 +256,7 @@ mod serialization_tests {
     fn serializes_negative_big_number() {
         let value = "-298416298361318972639172639182763918263981267391826379128";
 
-        let result = DataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
+        let result = ProtocolDataType::BigNumber(BigInt::from_str(value).unwrap()).serialize();
 
         let expected = format!("({}\r\n", value);
 
@@ -274,45 +265,45 @@ mod serialization_tests {
 
     #[test]
     fn serializes_bulk_error() {
-        let result = DataType::BulkError("Some error".into()).serialize();
+        let result = ProtocolDataType::BulkError("Some error".into()).serialize();
 
         assert_eq!(result, "!10\r\nSome error\r\n");
     }
 
     #[test]
     fn serializes_bulk_string() {
-        let result = DataType::BulkString("Some string".into()).serialize();
+        let result = ProtocolDataType::BulkString("Some string".into()).serialize();
 
         assert_eq!(result, "$11\r\nSome string\r\n");
     }
 
     #[test]
     fn serializes_bulk_string_with_zero_length() {
-        let result = DataType::BulkString("".into()).serialize();
+        let result = ProtocolDataType::BulkString("".into()).serialize();
 
         assert_eq!(result, "$0\r\n");
     }
 
     #[test]
     fn serializes_simple_error() {
-        let result = DataType::SimpleError("ERR Some error".into()).serialize();
+        let result = ProtocolDataType::SimpleError("ERR Some error".into()).serialize();
 
         assert_eq!(result, "-ERR Some error\r\n");
     }
 
     #[test]
     fn serializes_simple_string() {
-        let result = DataType::SimpleString("OK".into()).serialize();
+        let result = ProtocolDataType::SimpleString("OK".into()).serialize();
 
         assert_eq!(result, "+OK\r\n");
     }
 
     #[test]
     fn serializes_array() {
-        let result = DataType::Array(vec![
-            DataType::BulkString("Foo".into()),
-            DataType::Integer(42),
-            DataType::Boolean(true),
+        let result = ProtocolDataType::Array(vec![
+            ProtocolDataType::BulkString("Foo".into()),
+            ProtocolDataType::Integer(42),
+            ProtocolDataType::Boolean(true),
         ])
         .serialize();
 
@@ -320,22 +311,36 @@ mod serialization_tests {
     }
 
     #[test]
+    fn serializes_nested_array() {
+        let result = ProtocolDataType::Array(vec![
+            ProtocolDataType::BulkString("Foo".into()),
+            ProtocolDataType::Array(vec![
+                ProtocolDataType::Boolean(true),
+                ProtocolDataType::Integer(42),
+            ]),
+        ])
+        .serialize();
+
+        assert_eq!(result, "*2\r\n$3\r\nFoo\r\n*2\r\n#t\r\n:42\r\n");
+    }
+
+    #[test]
     fn serializes_array_with_no_items() {
-        let result = DataType::Array(vec![]).serialize();
+        let result = ProtocolDataType::Array(vec![]).serialize();
 
         assert_eq!(result, "*0\r\n");
     }
 }
 
 #[cfg(test)]
-mod parsing_tests {
+mod parsing {
     use super::*;
 
     #[test]
     fn parses_null() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Null;
+        let expected = ProtocolDataType::Null;
 
-        let result: DataType = "_\r\n".parse()?;
+        let result: ProtocolDataType = "_\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -344,9 +349,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_unsigned_double_with_no_fractional_part() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(3.0);
+        let expected = ProtocolDataType::Double(3.0);
 
-        let result: DataType = ",3\r\n".parse()?;
+        let result: ProtocolDataType = ",3\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -355,9 +360,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_positive_double_with_no_fractional_part() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(3.0);
+        let expected = ProtocolDataType::Double(3.0);
 
-        let result: DataType = ",+3\r\n".parse()?;
+        let result: ProtocolDataType = ",+3\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -366,9 +371,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_negative_double_with_no_fractional_part() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(3.0);
+        let expected = ProtocolDataType::Double(3.0);
 
-        let result: DataType = ",-3\r\n".parse()?;
+        let result: ProtocolDataType = ",-3\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -377,9 +382,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_unsigned_double_with_fractional_part() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(3.141592);
+        let expected = ProtocolDataType::Double(3.141592);
 
-        let result: DataType = ",3.141592\r\n".parse()?;
+        let result: ProtocolDataType = ",3.141592\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -388,9 +393,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_positive_double_with_fractional_part() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(3.141592);
+        let expected = ProtocolDataType::Double(3.141592);
 
-        let result: DataType = ",+3.141592\r\n".parse()?;
+        let result: ProtocolDataType = ",+3.141592\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -399,9 +404,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_negative_double_with_fractional_part() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(3.141592);
+        let expected = ProtocolDataType::Double(3.141592);
 
-        let result: DataType = ",-3.141592\r\n".parse()?;
+        let result: ProtocolDataType = ",-3.141592\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -410,9 +415,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_double_with_infinity() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(f64::INFINITY);
+        let expected = ProtocolDataType::Double(f64::INFINITY);
 
-        let result: DataType = ",inf\r\n".parse()?;
+        let result: ProtocolDataType = ",inf\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -421,9 +426,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_double_with_negative_infinity() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(f64::NEG_INFINITY);
+        let expected = ProtocolDataType::Double(f64::NEG_INFINITY);
 
-        let result: DataType = ",-inf\r\n".parse()?;
+        let result: ProtocolDataType = ",-inf\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -432,9 +437,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_double_with_not_a_number() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Double(f64::NAN);
+        let expected = ProtocolDataType::Double(f64::NAN);
 
-        let result: DataType = ",nan\r\n".parse()?;
+        let result: ProtocolDataType = ",nan\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -443,9 +448,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_boolean_true() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Boolean(true);
+        let expected = ProtocolDataType::Boolean(true);
 
-        let result: DataType = "#t\r\n".parse()?;
+        let result: ProtocolDataType = "#t\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -454,9 +459,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_boolean_false() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Boolean(false);
+        let expected = ProtocolDataType::Boolean(false);
 
-        let result: DataType = "#f\r\n".parse()?;
+        let result: ProtocolDataType = "#f\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -465,9 +470,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_unsigned_integer() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Integer(42);
+        let expected = ProtocolDataType::Integer(42);
 
-        let result: DataType = ":42\r\n".parse()?;
+        let result: ProtocolDataType = ":42\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -476,9 +481,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_positive_integer() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Integer(42);
+        let expected = ProtocolDataType::Integer(42);
 
-        let result: DataType = ":+42\r\n".parse()?;
+        let result: ProtocolDataType = ":+42\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -487,9 +492,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_negative_integer() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Integer(-42);
+        let expected = ProtocolDataType::Integer(-42);
 
-        let result: DataType = ":-42\r\n".parse()?;
+        let result: ProtocolDataType = ":-42\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -500,9 +505,9 @@ mod parsing_tests {
     fn parses_positive_big_number() -> Result<(), Box<dyn Error>> {
         let number_str = "298416298361318972639172639182763918263981267391826379128";
 
-        let expected = DataType::BigNumber(BigInt::from_str(number_str)?);
+        let expected = ProtocolDataType::BigNumber(BigInt::from_str(number_str)?);
 
-        let result: DataType = format!("({}\r\n", number_str).parse()?;
+        let result: ProtocolDataType = format!("({}\r\n", number_str).parse()?;
 
         assert_eq!(expected, result);
 
@@ -513,9 +518,9 @@ mod parsing_tests {
     fn parses_negative_big_number() -> Result<(), Box<dyn Error>> {
         let number_str = "-298416298361318972639172639182763918263981267391826379128";
 
-        let expected = DataType::BigNumber(BigInt::from_str(number_str)?);
+        let expected = ProtocolDataType::BigNumber(BigInt::from_str(number_str)?);
 
-        let result: DataType = format!("({}\r\n", number_str).parse()?;
+        let result: ProtocolDataType = format!("({}\r\n", number_str).parse()?;
 
         assert_eq!(expected, result);
 
@@ -524,9 +529,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_bulk_error() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::BulkError(String::from("Some error"));
+        let expected = ProtocolDataType::BulkError(String::from("Some error"));
 
-        let result: DataType = "!10\r\nSome error\r\n".parse()?;
+        let result: ProtocolDataType = "!10\r\nSome error\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -535,9 +540,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_bulk_string() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::BulkString(String::from("Some string"));
+        let expected = ProtocolDataType::BulkString(String::from("Some string"));
 
-        let result: DataType = "$11\r\nSome string\r\n".parse()?;
+        let result: ProtocolDataType = "$11\r\nSome string\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -546,9 +551,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_bulk_string_with_zero_length() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::BulkString(String::new());
+        let expected = ProtocolDataType::BulkString(String::new());
 
-        let result: DataType = "$0\r\n".parse()?;
+        let result: ProtocolDataType = "$0\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -557,9 +562,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_simple_error() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::SimpleError(String::from("ERR Some error"));
+        let expected = ProtocolDataType::SimpleError(String::from("ERR Some error"));
 
-        let result: DataType = "-ERR Some error\r\n".parse()?;
+        let result: ProtocolDataType = "-ERR Some error\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -568,9 +573,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_simple_string() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::SimpleString(String::from("OK"));
+        let expected = ProtocolDataType::SimpleString(String::from("OK"));
 
-        let result: DataType = "+OK\r\n".parse()?;
+        let result: ProtocolDataType = "+OK\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -579,13 +584,13 @@ mod parsing_tests {
 
     #[test]
     fn parses_array() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Array(vec![
-            DataType::BulkString(String::from("Foo")),
-            DataType::Integer(42),
-            DataType::Boolean(true),
+        let expected = ProtocolDataType::Array(vec![
+            ProtocolDataType::BulkString(String::from("Foo")),
+            ProtocolDataType::Integer(42),
+            ProtocolDataType::Boolean(true),
         ]);
 
-        let result: DataType = "*3\r\n$3\r\nFoo\r\n:42\r\n#t\r\n".parse()?;
+        let result: ProtocolDataType = "*3\r\n$3\r\nFoo\r\n:42\r\n#t\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -594,9 +599,9 @@ mod parsing_tests {
 
     #[test]
     fn parses_array_with_no_items() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Array(Vec::new());
+        let expected = ProtocolDataType::Array(Vec::new());
 
-        let result: DataType = "*0\r\n".parse()?;
+        let result: ProtocolDataType = "*0\r\n".parse()?;
 
         assert_eq!(expected, result);
 
@@ -605,19 +610,19 @@ mod parsing_tests {
 
     #[test]
     fn parses_nested_array() -> Result<(), Box<dyn Error>> {
-        let expected = DataType::Array(vec![
-            DataType::Array(vec![
-                DataType::Integer(1),
-                DataType::Integer(2),
-                DataType::Integer(3),
+        let expected = ProtocolDataType::Array(vec![
+            ProtocolDataType::Array(vec![
+                ProtocolDataType::Integer(1),
+                ProtocolDataType::Integer(2),
+                ProtocolDataType::Integer(3),
             ]),
-            DataType::Array(vec![
-                DataType::SimpleString(String::from("Hello")),
-                DataType::SimpleError(String::from("World")),
+            ProtocolDataType::Array(vec![
+                ProtocolDataType::SimpleString(String::from("Hello")),
+                ProtocolDataType::SimpleError(String::from("World")),
             ]),
         ]);
 
-        let result: DataType =
+        let result: ProtocolDataType =
             "*2\r\n*3\r\n:1\r\n:2\r\n:3\r\n*2\r\n+Hello\r\n-World\r\n".parse()?;
 
         assert_eq!(expected, result);
